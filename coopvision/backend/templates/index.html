@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interface de Verificação - Sicredi</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
+</head>
+<body>
+
+    <header class="header-bar">
+        <img src="{{ url_for('static', filename='img/sicredi.jpg') }}" alt="">
+    </header>
+
+    <main class="main-container">
+
+        <!-- quadrado 1 -->
+        <section class="card">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <h1 class="step-title">Upload do documento</h1>
+            </div>
+            <p class="step-description">Envie o seu RG ou CNH para que possamos realizar a análise.</p>
+
+            <div class="drop-zone" id="drop-zone">
+                <div class="processing-zone">
+                    <img class="identity" src="{{ url_for('static', filename='img/papel-botao.png') }}" alt="documento" id="preview">
+                </div>
+                <p id="nome-arquivo">Arraste e solte o documento aqui ou selecione o arquivo</p>
+            </div>
+
+            <!-- input real de arquivo, escondido -->
+            <input type="file" id="input-arquivo" accept="image/*" hidden>
+
+            <button type="button" class="btn-outline" id="btn-selecionar">
+                <img class="icon" src="{{ url_for('static', filename='img/papel-bot.png') }}" alt="">
+                <span>Selecione o documento</span>
+            </button>
+            <button type="button" class="btn-solid upload-file" id="btn-enviar">
+                <img class="icon" src="{{ url_for('static', filename='icon/subir-arquivo.png') }}" alt="">
+                <span>Enviar para o processamento</span>
+            </button>
+        </section>''
+
+        <!-- quadrado 2 -->
+        <section class="card">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <h1 class="step-title">Processamento</h1>
+            </div>
+            <p class="step-description">Estamos analisando o seu documento com a inteligência artificial.</p>
+
+            <div class="processing-zone">
+                <img src="{{ url_for('static', filename='img/papel-lupa.png') }}" alt="lupa">
+
+                <h3 class="analysis-title" id="titulo-analise">Aguardando documento...</h3>
+                <p class="analysis-subtitle">Isso pode levar alguns segundos.</p>
+
+                <div class="progress-container">
+                    <div class="progress-bar" id="barra-progresso"></div>
+                </div>
+                <span class="status-text" id="status-texto">aguardando envio</span>
+            </div>
+        </section>
+
+        <!-- quadrado 3 -->
+        <section class="card">
+    <div class="step-header">
+        <div class="step-number">3</div>
+        <h1 class="step-title">Dados pessoais</h1>
+    </div>
+    <p class="step-description">Confira os dados do seu documento e confirme para que possamos continuar.</p>
+
+    <div class="form-group">
+        <label for="nome">Nome</label>
+        <div class="input-container">
+            <img class="field-icon" src="{{ url_for('static', filename='icon/icone-pessoa.png') }}" alt="">
+            <input type="text" id="nome" placeholder="Digite seu nome">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="numero_cpf">CPF</label>
+        <div class="input-container">
+            <input type="text" id="numero_cpf" placeholder="000.000.000-00">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="data_nascimento">Data de nascimento</label>
+        <div class="input-container">
+            <img class="field-icon" src="{{ url_for('static', filename='icon/calendario.png') }}" alt="">
+            <input type="text" id="data_nascimento" placeholder="DD/MM/AAAA">
+        </div>
+    </div>
+
+    <button type="button" class="btn-solid btn-confirm" id="btn-confirmar">
+        <img class="icon icon-check" src="{{ url_for('static', filename='icon/trasso-correto.png') }}" alt="">
+        <span>Confirmar dados e continuar</span>
+    </button>
+    <button type="button" class="btn-link" id="btn-editar">Editar dados</button>
+</section>
+
+    </main>
+
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const fileInput = document.getElementById('input-arquivo');
+        const selectButton = document.getElementById('btn-selecionar');
+        const sendButton = document.getElementById('btn-enviar');
+        const dropZone = document.getElementById('drop-zone');
+        const fileName = document.getElementById('nome-arquivo');
+        const preview = document.getElementById('preview');
+
+        const progressBar = document.getElementById('barra-progresso');
+        const title = document.getElementById('titulo-analise');
+        const status = document.getElementById('status-texto');
+
+        const editButton = document.getElementById('btn-editar');
+
+        // chave do JSON -> id do input no HTML
+        const map = {
+            nome: 'nome',
+            numero_cpf: 'numero_cpf',
+            data_nascimento: 'data_nascimento',
+        };
+
+        let selectedFile = null;
+        let progressInterval = null;
+
+        // ---------- seleção do arquivo ----------
+        selectButton.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) definirArquivo(fileInput.files[0]);
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#3f9c35';
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = '';
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) definirArquivo(file);
+        });
+
+        function definirArquivo(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            preview.src = URL.createObjectURL(file); // mostra a imagem escolhida
+        }
+
+        // ---------- barra de progresso ----------
+        // Avança devagar até 90% enquanto espera a IA; completa ao receber a resposta.
+        function iniciarBarra() {
+            let progress = 0;
+            progressBar.style.width = '0%';
+            clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 1;
+                    progressBar.style.width = progress + '%';
+                }
+            }, 100);
+        }
+
+        function finalizarBarra() {
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+        }
+
+        function resetarBarra() {
+            clearInterval(progressInterval);
+            progressBar.style.width = '0%';
+        }
+
+        // ---------- envio para o backend ----------
+        sendButton.addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('Selecione um documento primeiro.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('imagem', selectedFile);
+
+            sendButton.disabled = true;
+            title.textContent = 'Documento em análise...';
+            status.textContent = 'analisando as informações';
+            iniciarBarra();
+
+            try {
+                const response = await fetch('/ler-imagem', {
+                 method: 'POST',
+                 body: formData
+                 });
+                const data = await response.json();
+
+                if (!response.ok || data.erro) {
+                    throw new Error(data.erro || 'Erro ao processar a imagem');
+                }
+
+                finalizarBarra();
+
+                if (!data.Is_there_cpf) {
+                    title.textContent = 'Nenhum CPF encontrado';
+                    status.textContent = 'tente outra imagem';
+                    return;
+                }
+
+                preencherCampos(data.document_data);
+                title.textContent = 'Análise concluída!';
+                status.textContent = 'confira os dados ao lado';
+
+            } catch (error) {
+                console.error(error);
+                resetarBarra();
+                title.textContent = 'Não foi possível ler o documento';
+                status.textContent = 'tente novamente';
+            } finally {
+                sendButton.disabled = false;
+            }
+        });
+
+        function preencherCampos(data) {
+            for (const [key, value] of Object.entries(data)) {
+                const input = document.getElementById(map[key]);
+                if (input && value) {
+                    input.value = value;
+                    input.readOnly = true; // travado até clicar em "Editar dados"
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        }
+
+        // ---------- editar dados ----------
+        editButton.addEventListener('click', () => {
+            Object.values(map).forEach((id) => {
+                document.getElementById(id).readOnly = false;
+            });
+            document.getElementById('nome').focus();
+        });
+    });
+    </script>
+
+</body>
+</html>
